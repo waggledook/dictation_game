@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dictation Trainer</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --panel-2: #1f2937;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-2: #22c55e;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --border: #334155;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: linear-gradient(180deg, #0b1120 0%, #111827 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 24px;
+    }
+    .app {
+      max-width: 900px;
+      margin: 0 auto;
+      background: rgba(17,24,39,.96);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 20px 50px rgba(0,0,0,.35);
+    }
+    .header {
+      padding: 24px 24px 14px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(56,189,248,.09), rgba(0,0,0,0));
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 30px;
+    }
+    .sub {
+      color: var(--muted);
+      line-height: 1.45;
+      margin: 0;
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      padding: 20px 24px 0;
+    }
+    .stat {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+    }
+    .stat-label {
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+    .stat-value {
+      font-size: 24px;
+      font-weight: 700;
+    }
+    .main {
+      padding: 24px;
+    }
+    .card {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 18px;
+    }
+    .controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 16px;
+    }
+    button {
+      border: 0;
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      background: #334155;
+      color: white;
+    }
+    button.primary { background: var(--accent); color: #082f49; }
+    button.success { background: var(--accent-2); color: #052e16; }
+    button.warn { background: var(--warning); color: #451a03; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    textarea {
+      width: 100%;
+      min-height: 110px;
+      resize: vertical;
+      background: #0b1220;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      font-size: 18px;
+      line-height: 1.5;
+    }
+    .help {
+      color: var(--muted);
+      font-size: 14px;
+      margin-top: 8px;
+    }
+    .feedback {
+      min-height: 92px;
+      line-height: 1.8;
+      font-size: 20px;
+    }
+    .token {
+      display: inline-block;
+      margin: 0 6px 8px 0;
+      padding: 3px 8px;
+      border-radius: 10px;
+      border: 1px solid transparent;
+      background: #0b1220;
+    }
+    .correct {
+      color: #bbf7d0;
+      background: rgba(34,197,94,.14);
+      border-color: rgba(34,197,94,.35);
+    }
+    .wrong {
+      color: #fecaca;
+      background: rgba(239,68,68,.14);
+      border-color: rgba(239,68,68,.35);
+    }
+    .missing {
+      color: transparent;
+      background: rgba(239,68,68,.2);
+      border-color: rgba(239,68,68,.45);
+      min-width: 38px;
+      text-decoration: none;
+    }
+    .message {
+      margin-top: 14px;
+      font-weight: 700;
+    }
+    .ok { color: #86efac; }
+    .bad { color: #fca5a5; }
+    .info { color: #7dd3fc; }
+    .hidden { display: none; }
+    .list {
+      margin: 0;
+      padding-left: 20px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+    @media (max-width: 700px) {
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      h1 { font-size: 24px; }
+      .feedback { font-size: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="header">
+      <h1>Dictation Trainer</h1>
+      <p class="sub">Listen, type the sentence, and get word-level feedback directly on the sentence. Correct words appear in green, incorrect words in red, and missed words show as red gaps. This version uses your 20 fixed sentences and expects audio files in <strong>audio/sentence01.mp3</strong> to <strong>audio/sentence20.mp3</strong>.</p>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="stat-label">Sentence</div><div class="stat-value" id="sentenceNum">0 / 20</div></div>
+      <div class="stat"><div class="stat-label">Attempt</div><div class="stat-value" id="attemptNum">—</div></div>
+      <div class="stat"><div class="stat-label">Score</div><div class="stat-value" id="scoreNum">0</div></div>
+      <div class="stat"><div class="stat-label">Status</div><div class="stat-value" id="statusText">Ready</div></div>
+    </div>
+
+    <div class="main">
+      <div class="card" id="introCard">
+        <p style="margin-top:0;"><strong>How it works</strong></p>
+        <ul class="list">
+          <li>Click <strong>Start</strong> to begin.</li>
+          <li>Sentences are shuffled each time you start a game.</li>
+          <li>Each sentence can be answered twice.</li>
+          <li>You get <strong>10 points</strong> on the first attempt, <strong>5 points</strong> on the second.</li>
+          <li>Press <strong>Enter</strong> to submit, or use the button.</li>
+          <li>Replay the audio whenever you want.</li>
+        </ul>
+        <div class="controls">
+          <button class="primary" id="startBtn">Start</button>
+        </div>
+      </div>
+
+      <div class="card hidden" id="gameCard">
+        <div class="controls" style="margin-top:0; margin-bottom:14px;">
+          <button class="primary" id="playBtn">▶ Play audio</button>
+          <button id="replayBtn">↻ Replay</button>
+          <button class="warn" id="nextBtn" disabled>Next sentence</button>
+        </div>
+
+        <label for="userInput"><strong>Type what you hear</strong></label>
+        <textarea id="userInput" placeholder="Type the sentence here..."></textarea>
+        <div class="help">Punctuation is ignored. Apostrophes are accepted in curly or straight form.</div>
+
+        <div class="controls">
+          <button class="success" id="submitBtn">Check answer</button>
+        </div>
+      </div>
+
+      <div class="card hidden" id="feedbackCard">
+        <p style="margin-top:0;"><strong>Feedback</strong></p>
+        <div class="feedback" id="feedback"></div>
+        <div class="message" id="message"></div>
+      </div>
+
+      <div class="card hidden" id="endCard">
+        <p style="margin-top:0;"><strong>Finished</strong></p>
+        <p id="finalSummary"></p>
+        <div class="controls">
+          <button class="primary" id="restartBtn">Play again</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const sentences = [
+      "Tell him I'll call him back later.",
+      "She's a very talkative person, isn't she?",
+      "What's your middle name?",
+      "He's quite an ambitious young man.",
+      "What are you packing for your trip?",
+      "It's hers, not mine, so put it back.",
+      "Does she work in a chemist's or a department store?",
+      "I'm going to the checkout now.",
+      "I used to live in a small village.",
+      "We were looking at old photos when you called.",
+      "He grew up in London but moved to France.",
+      "What was she doing when you arrived?",
+      "I'm going to throw this rubbish away.",
+      "If I had a better job, I'd earn more money.",
+      "Will you help me recycle these bottles?",
+      "I'll apply for the position if I have time.",
+      "How long have you been watching this show?",
+      "I've never lived in the country before.",
+      "There's a beautiful view from the woods.",
+      "She's been working on her CV all day."
+    ];
+
+    const state = {
+      currentIndex: -1,
+      order: [],
+      attempt: 1,
+      score: 0,
+      completed: 0,
+      audio: null
+    };
+
+    const $ = (id) => document.getElementById(id);
+
+    const sentenceNum = $("sentenceNum");
+    const attemptNum = $("attemptNum");
+    const scoreNum = $("scoreNum");
+    const statusText = $("statusText");
+    const introCard = $("introCard");
+    const gameCard = $("gameCard");
+    const feedbackCard = $("feedbackCard");
+    const endCard = $("endCard");
+    const userInput = $("userInput");
+    const feedback = $("feedback");
+    const message = $("message");
+    const nextBtn = $("nextBtn");
+
+    function updateStats() {
+      sentenceNum.textContent = state.currentIndex >= 0 ? `${state.currentIndex + 1} / ${sentences.length}` : `0 / ${sentences.length}`;
+      attemptNum.textContent = state.currentIndex >= 0 ? `${state.attempt} / 2` : '—';
+      scoreNum.textContent = state.score;
+    }
+
+    function setStatus(text) {
+      statusText.textContent = text;
+    }
+
+    function normalize(text) {
+      return text
+        .toLowerCase()
+        .trim()
+        .replace(/[“”]/g, '"')
+        .replace(/[’‘]/g, "'")
+        .replace(/[.,!?;:]/g, '')
+        .replace(/\s+/g, ' ');
+    }
+
+    function tokenize(text) {
+      const normalized = normalize(text);
+      return normalized ? normalized.split(' ') : [];
+    }
+
+    function shuffle(array) {
+      const copy = [...array];
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+      return copy;
+    }
+
+    function escapeHtml(str) {
+      return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function getSentenceIndex() {
+      return state.order[state.currentIndex];
+    }
+
+    function compareWords(userText, correctText) {
+      const userWords = tokenize(userText);
+      const correctWords = tokenize(correctText);
+      const dp = Array.from({ length: userWords.length + 1 }, () =>
+        Array(correctWords.length + 1).fill(0)
+      );
+
+      for (let i = 0; i <= userWords.length; i++) dp[i][0] = i;
+      for (let j = 0; j <= correctWords.length; j++) dp[0][j] = j;
+
+      for (let i = 1; i <= userWords.length; i++) {
+        for (let j = 1; j <= correctWords.length; j++) {
+          if (userWords[i - 1] === correctWords[j - 1]) {
+            dp[i][j] = dp[i - 1][j - 1];
+          } else {
+            dp[i][j] = Math.min(
+              dp[i - 1][j - 1] + 1,
+              dp[i - 1][j] + 1,
+              dp[i][j - 1] + 1
+            );
+          }
+        }
+      }
+
+      const aligned = [];
+      let i = userWords.length;
+      let j = correctWords.length;
+
+      while (i > 0 || j > 0) {
+        if (
+          i > 0 &&
+          j > 0 &&
+          userWords[i - 1] === correctWords[j - 1] &&
+          dp[i][j] === dp[i - 1][j - 1]
+        ) {
+          aligned.push({ token: correctWords[j - 1], className: 'correct' });
+          i -= 1;
+          j -= 1;
+        } else if (j > 0 && (i === 0 || dp[i][j] === dp[i][j - 1] + 1)) {
+          aligned.push({ token: '&nbsp;', className: 'missing' });
+          j -= 1;
+        } else if (i > 0 && j > 0 && dp[i][j] === dp[i - 1][j - 1] + 1) {
+          aligned.push({ token: userWords[i - 1], className: 'wrong' });
+          i -= 1;
+          j -= 1;
+        } else if (i > 0 && dp[i][j] === dp[i - 1][j] + 1) {
+          i -= 1;
+        }
+      }
+
+      return aligned.reverse().map(({ token, className }) => {
+        const content = token === '&nbsp;' ? token : escapeHtml(token);
+        return `<span class="token ${className}">${content}</span>`;
+      }).join('');
+    }
+
+    function audioPath(index) {
+      return `audio/sentence${String(index + 1).padStart(2, '0')}.mp3`;
+    }
+
+    function playAudio() {
+      if (state.currentIndex < 0) return;
+      const sentenceIndex = getSentenceIndex();
+      if (state.audio) {
+        state.audio.pause();
+        state.audio.currentTime = 0;
+      }
+      state.audio = new Audio(audioPath(sentenceIndex));
+      state.audio.play().catch(() => {
+        setStatus('Audio error');
+        message.className = 'message bad';
+        message.textContent = `Could not play ${audioPath(sentenceIndex)}. Check that the file exists.`;
+      });
+    }
+
+    function startGame() {
+      state.order = shuffle(sentences.map((_, index) => index));
+      state.currentIndex = 0;
+      state.attempt = 1;
+      state.score = 0;
+      state.completed = 0;
+      introCard.classList.add('hidden');
+      endCard.classList.add('hidden');
+      gameCard.classList.remove('hidden');
+      feedbackCard.classList.remove('hidden');
+      loadSentence();
+    }
+
+    function loadSentence() {
+      updateStats();
+      setStatus('Listening');
+      feedback.innerHTML = '';
+      message.className = 'message info';
+      message.textContent = 'Listen and type the sentence.';
+      userInput.value = '';
+      userInput.focus();
+      nextBtn.disabled = true;
+      playAudio();
+    }
+
+    function submitAnswer() {
+      if (state.currentIndex < 0) return;
+      const typed = userInput.value;
+      const target = sentences[getSentenceIndex()];
+
+      feedback.innerHTML = compareWords(typed, target);
+
+      if (normalize(typed) === normalize(target)) {
+        const points = state.attempt === 1 ? 10 : 5;
+        state.score += points;
+        updateStats();
+        setStatus('Correct');
+        message.className = 'message ok';
+        message.textContent = `Correct. +${points} points.`;
+        nextBtn.disabled = false;
+        if (state.currentIndex === sentences.length - 1) {
+          nextBtn.textContent = 'Finish';
+        } else {
+          nextBtn.textContent = 'Next sentence';
+        }
+      } else {
+        if (state.attempt === 1) {
+          state.attempt = 2;
+          updateStats();
+          setStatus('Try again');
+          message.className = 'message bad';
+          message.textContent = 'Not quite. Listen again and try one more time.';
+          playAudio();
+        } else {
+          setStatus('Answer shown');
+          message.className = 'message bad';
+          message.textContent = 'Second attempt incorrect.';
+          nextBtn.disabled = false;
+          if (state.currentIndex === sentences.length - 1) {
+            nextBtn.textContent = 'Finish';
+          } else {
+            nextBtn.textContent = 'Next sentence';
+          }
+        }
+      }
+    }
+
+    function nextSentence() {
+      if (nextBtn.disabled) return;
+      state.completed += 1;
+      if (state.currentIndex >= sentences.length - 1) {
+        endGame();
+        return;
+      }
+      state.currentIndex += 1;
+      state.attempt = 1;
+      loadSentence();
+    }
+
+    function endGame() {
+      gameCard.classList.add('hidden');
+      endCard.classList.remove('hidden');
+      setStatus('Finished');
+      updateStats();
+      const maxScore = sentences.length * 10;
+      $("finalSummary").innerHTML = `Final score: <strong>${state.score}</strong> out of <strong>${maxScore}</strong>. You completed <strong>${sentences.length}</strong> sentences.`;
+    }
+
+    $("startBtn").addEventListener('click', startGame);
+    $("playBtn").addEventListener('click', playAudio);
+    $("replayBtn").addEventListener('click', playAudio);
+    $("submitBtn").addEventListener('click', submitAnswer);
+    nextBtn.addEventListener('click', nextSentence);
+    $("restartBtn").addEventListener('click', startGame);
+    userInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        submitAnswer();
+      }
+    });
+
+    updateStats();
+  </script>
+</body>
+</html>
