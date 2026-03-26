@@ -172,11 +172,11 @@
   <div class="app">
     <div class="header">
       <h1>Dictation Trainer</h1>
-      <p class="sub">Listen, type the sentence, and get word-level feedback directly on the sentence. Correct words appear in green, incorrect words in red, and missed words show as red gaps. This version uses your 20 fixed sentences and expects audio files in <strong>audio/sentence01.mp3</strong> to <strong>audio/sentence20.mp3</strong>.</p>
+      <p class="sub">Listen, type the sentence, and get word-level feedback directly on the sentence. Correct words appear in green, incorrect words in red, and missed words show as red gaps. You have 1 minute 30 seconds to score as many points as possible. This version uses your 20 fixed sentences and expects audio files in <strong>audio/sentence01.mp3</strong> to <strong>audio/sentence20.mp3</strong>.</p>
     </div>
 
     <div class="stats">
-      <div class="stat"><div class="stat-label">Sentence</div><div class="stat-value" id="sentenceNum">0 / 20</div></div>
+      <div class="stat"><div class="stat-label">Time Left</div><div class="stat-value" id="sentenceNum">1:30</div></div>
       <div class="stat"><div class="stat-label">Attempt</div><div class="stat-value" id="attemptNum">—</div></div>
       <div class="stat"><div class="stat-label">Score</div><div class="stat-value" id="scoreNum">0</div></div>
       <div class="stat"><div class="stat-label">Status</div><div class="stat-value" id="statusText">Ready</div></div>
@@ -187,7 +187,8 @@
         <p style="margin-top:0;"><strong>How it works</strong></p>
         <ul class="list">
           <li>Click <strong>Start</strong> to begin.</li>
-          <li>Sentences are shuffled each time you start a game.</li>
+          <li>You have <strong>1 minute 30 seconds</strong> per round.</li>
+          <li>Sentences are shuffled and recycled as needed during the round.</li>
           <li>Each sentence can be answered twice.</li>
           <li>You get <strong>10 points</strong> on the first attempt, <strong>5 points</strong> on the second.</li>
           <li>Press <strong>Enter</strong> to submit, or use the button.</li>
@@ -206,7 +207,7 @@
         </div>
 
         <label for="userInput"><strong>Type what you hear</strong></label>
-        <textarea id="userInput" placeholder="Type the sentence here..."></textarea>
+        <textarea id="userInput" placeholder="Type the sentence here..." spellcheck="false" autocorrect="off" autocapitalize="off" autocomplete="off"></textarea>
         <div class="help">Punctuation is ignored. Apostrophes are accepted in curly or straight form.</div>
 
         <div class="controls">
@@ -231,6 +232,10 @@
   </div>
 
   <script>
+    const ROUND_DURATION = 90;
+    const LAST_SCORE_KEY = 'dictation-game-last-score';
+    const BEST_SCORE_KEY = 'dictation-game-best-score';
+
     const sentences = [
       "Tell him I'll call him back later.",
       "She's a very talkative person, isn't she?",
@@ -260,7 +265,10 @@
       attempt: 1,
       score: 0,
       completed: 0,
-      audio: null
+      audio: null,
+      timeLeft: ROUND_DURATION,
+      timerId: null,
+      roundOver: false
     };
 
     const $ = (id) => document.getElementById(id);
@@ -278,8 +286,14 @@
     const message = $("message");
     const nextBtn = $("nextBtn");
 
+    function formatTime(totalSeconds) {
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = totalSeconds % 60;
+      return `${minutes}:${String(seconds).padStart(2, '0')}`;
+    }
+
     function updateStats() {
-      sentenceNum.textContent = state.currentIndex >= 0 ? `${state.currentIndex + 1} / ${sentences.length}` : `0 / ${sentences.length}`;
+      sentenceNum.textContent = formatTime(state.timeLeft);
       attemptNum.textContent = state.currentIndex >= 0 ? `${state.attempt} / 2` : '—';
       scoreNum.textContent = state.score;
     }
@@ -323,6 +337,11 @@
 
     function getSentenceIndex() {
       return state.order[state.currentIndex];
+    }
+
+    function reshuffleSentences() {
+      state.order = shuffle(sentences.map((_, index) => index));
+      state.currentIndex = 0;
     }
 
     function compareWords(userText, correctText) {
@@ -386,7 +405,7 @@
     }
 
     function playAudio() {
-      if (state.currentIndex < 0) return;
+      if (state.currentIndex < 0 || state.roundOver) return;
       const sentenceIndex = getSentenceIndex();
       if (state.audio) {
         state.audio.pause();
@@ -401,19 +420,50 @@
     }
 
     function startGame() {
-      state.order = shuffle(sentences.map((_, index) => index));
-      state.currentIndex = 0;
+      stopTimer();
+      reshuffleSentences();
       state.attempt = 1;
       state.score = 0;
       state.completed = 0;
+      state.timeLeft = ROUND_DURATION;
+      state.roundOver = false;
       introCard.classList.add('hidden');
       endCard.classList.add('hidden');
       gameCard.classList.remove('hidden');
       feedbackCard.classList.remove('hidden');
+      userInput.disabled = false;
+      $("submitBtn").disabled = false;
+      $("playBtn").disabled = false;
+      $("replayBtn").disabled = false;
+      nextBtn.textContent = 'Next sentence';
+      startTimer();
       loadSentence();
     }
 
+    function startTimer() {
+      updateStats();
+      state.timerId = window.setInterval(() => {
+        if (state.timeLeft <= 0) {
+          endGame();
+          return;
+        }
+        state.timeLeft -= 1;
+        updateStats();
+        if (state.timeLeft <= 0) {
+          endGame();
+        }
+      }, 1000);
+    }
+
+    function stopTimer() {
+      if (state.timerId) {
+        window.clearInterval(state.timerId);
+        state.timerId = null;
+      }
+    }
+
     function loadSentence() {
+      if (state.roundOver) return;
       updateStats();
       setStatus('Listening');
       feedback.innerHTML = '';
@@ -426,7 +476,7 @@
     }
 
     function submitAnswer() {
-      if (state.currentIndex < 0) return;
+      if (state.currentIndex < 0 || state.roundOver) return;
       const typed = userInput.value;
       const target = sentences[getSentenceIndex()];
 
@@ -435,16 +485,17 @@
       if (normalize(typed) === normalize(target)) {
         const points = state.attempt === 1 ? 10 : 5;
         state.score += points;
+        state.completed += 1;
         updateStats();
         setStatus('Correct');
         message.className = 'message ok';
         message.textContent = `Correct. +${points} points.`;
-        nextBtn.disabled = false;
-        if (state.currentIndex === sentences.length - 1) {
-          nextBtn.textContent = 'Finish';
-        } else {
-          nextBtn.textContent = 'Next sentence';
-        }
+        nextBtn.disabled = true;
+        window.setTimeout(() => {
+          if (!state.roundOver) {
+            nextSentence(true);
+          }
+        }, 700);
       } else {
         if (state.attempt === 1) {
           state.attempt = 2;
@@ -458,34 +509,46 @@
           message.className = 'message bad';
           message.textContent = 'Second attempt incorrect.';
           nextBtn.disabled = false;
-          if (state.currentIndex === sentences.length - 1) {
-            nextBtn.textContent = 'Finish';
-          } else {
-            nextBtn.textContent = 'Next sentence';
-          }
+          nextBtn.textContent = 'Next sentence';
         }
       }
     }
 
-    function nextSentence() {
-      if (nextBtn.disabled) return;
-      state.completed += 1;
-      if (state.currentIndex >= sentences.length - 1) {
-        endGame();
-        return;
+    function nextSentence(forceAdvance = false) {
+      if ((nextBtn.disabled && !forceAdvance) || state.roundOver) return;
+      if (state.currentIndex >= state.order.length - 1) {
+        reshuffleSentences();
+      } else {
+        state.currentIndex += 1;
       }
-      state.currentIndex += 1;
       state.attempt = 1;
       loadSentence();
     }
 
     function endGame() {
+      if (state.roundOver) return;
+      state.roundOver = true;
+      stopTimer();
+      if (state.audio) {
+        state.audio.pause();
+        state.audio.currentTime = 0;
+      }
       gameCard.classList.add('hidden');
       endCard.classList.remove('hidden');
+      userInput.disabled = true;
+      $("submitBtn").disabled = true;
+      $("playBtn").disabled = true;
+      $("replayBtn").disabled = true;
+      nextBtn.disabled = true;
       setStatus('Finished');
       updateStats();
-      const maxScore = sentences.length * 10;
-      $("finalSummary").innerHTML = `Final score: <strong>${state.score}</strong> out of <strong>${maxScore}</strong>. You completed <strong>${sentences.length}</strong> sentences.`;
+      const bestScore = Math.max(
+        state.score,
+        Number(window.localStorage.getItem(BEST_SCORE_KEY) || 0)
+      );
+      window.localStorage.setItem(LAST_SCORE_KEY, String(state.score));
+      window.localStorage.setItem(BEST_SCORE_KEY, String(bestScore));
+      $("finalSummary").innerHTML = `Time's up. Final score: <strong>${state.score}</strong>. Sentences completed: <strong>${state.completed}</strong>. Best score: <strong>${bestScore}</strong>.`;
     }
 
     $("startBtn").addEventListener('click', startGame);
