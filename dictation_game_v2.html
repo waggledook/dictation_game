@@ -91,6 +91,77 @@
       gap: 8px;
       max-width: 360px;
     }
+    .settings-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      align-items: end;
+    }
+    .toggle-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .mode-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .switch {
+      position: relative;
+      display: inline-flex;
+      width: 78px;
+      height: 42px;
+      cursor: pointer;
+    }
+    .switch input {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .slider {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      border-radius: 999px;
+      background: #334155;
+      border: 1px solid rgba(255,255,255,.08);
+      box-shadow: inset 0 1px 3px rgba(0,0,0,.35);
+      transition: background .2s ease;
+    }
+    .slider::before {
+      content: "";
+      position: absolute;
+      top: 4px;
+      left: 4px;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: #f8fafc;
+      box-shadow: 0 2px 8px rgba(0,0,0,.35);
+      transition: transform .2s ease;
+    }
+    .switch input:checked + .slider {
+      background: rgba(56,189,248,.28);
+    }
+    .switch input:checked + .slider::before {
+      transform: translateX(36px);
+    }
+    .switch input:focus-visible + .slider {
+      outline: 2px solid rgba(56,189,248,.7);
+      outline-offset: 2px;
+    }
+    .mode-toggle-text {
+      display: grid;
+      gap: 2px;
+    }
+    .mode-toggle-label {
+      font-weight: 700;
+    }
+    .mode-toggle-value {
+      color: var(--muted);
+      font-size: 14px;
+    }
     select {
       width: 100%;
       background: #0b1220;
@@ -125,6 +196,10 @@
       padding: 14px;
       font-size: 18px;
       line-height: 1.5;
+    }
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
     }
     .help {
       color: var(--muted);
@@ -216,6 +291,27 @@
       color: var(--muted);
       font-size: 14px;
     }
+    .report-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+    .inline-correct {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+    }
+    .small-btn {
+      padding: 8px 12px;
+      font-size: 13px;
+      border-radius: 10px;
+    }
+    .mode-summary {
+      margin: 14px 0 0;
+      color: var(--muted);
+      line-height: 1.5;
+    }
     @media (max-width: 700px) {
       .stats { grid-template-columns: repeat(2, 1fr); }
       h1 { font-size: 24px; }
@@ -232,18 +328,43 @@
     </div>
 
     <div class="stats">
-      <div class="stat"><div class="stat-label">Time Left</div><div class="stat-value" id="sentenceNum">1:30</div></div>
+      <div class="stat"><div class="stat-label" id="statOneLabel">Time Left</div><div class="stat-value" id="sentenceNum">1:30</div></div>
       <div class="stat"><div class="stat-label">Attempt</div><div class="stat-value" id="attemptNum">—</div></div>
-      <div class="stat"><div class="stat-label">Score</div><div class="stat-value" id="scoreNum">0</div></div>
+      <div class="stat"><div class="stat-label" id="scoreLabel">Score</div><div class="stat-value" id="scoreNum">0</div></div>
       <div class="stat"><div class="stat-label">Status</div><div class="stat-value" id="statusText">Ready</div></div>
     </div>
 
     <div class="main">
       <div class="card" id="setCard">
-        <div class="field">
-          <label for="setSelect"><strong>Sentence set</strong></label>
-          <select id="setSelect"></select>
+        <div class="settings-grid">
+          <div class="field">
+            <label><strong>Mode</strong></label>
+            <div class="mode-toggle">
+              <label class="switch" for="modeToggle">
+                <input id="modeToggle" type="checkbox" aria-label="Toggle training mode" />
+                <span class="slider"></span>
+              </label>
+              <div class="mode-toggle-text">
+                <div class="mode-toggle-label" id="modeToggleLabel">Game mode</div>
+                <div class="mode-toggle-value">Switch on for training</div>
+              </div>
+            </div>
+          </div>
+          <div class="field">
+            <label for="setSelect"><strong>Sentence set</strong></label>
+            <select id="setSelect"></select>
+          </div>
+          <div class="field hidden" id="trainingCountField">
+            <label for="trainingCountSelect"><strong>Training sentences</strong></label>
+            <select id="trainingCountSelect"></select>
+          </div>
+          <div class="field hidden" id="speedField">
+            <label for="speedRange"><strong>Playback speed</strong></label>
+            <input id="speedRange" type="range" min="0.5" max="1" step="0.05" value="1" />
+            <div class="help" id="speedValue">100%</div>
+          </div>
         </div>
+        <p class="mode-summary" id="modeSummary">Game mode uses a 1 minute 30 second round with shuffled sentences and scoring.</p>
       </div>
 
       <div class="card" id="introCard">
@@ -374,6 +495,9 @@
       currentIndex: -1,
       order: [],
       attempt: 1,
+      mode: 'game',
+      trainingSentenceCount: 5,
+      playbackRate: 1,
       score: 0,
       completed: 0,
       roundHistory: [],
@@ -387,7 +511,9 @@
     const $ = (id) => document.getElementById(id);
 
     const sentenceNum = $("sentenceNum");
+    const statOneLabel = $("statOneLabel");
     const attemptNum = $("attemptNum");
+    const scoreLabel = $("scoreLabel");
     const scoreNum = $("scoreNum");
     const statusText = $("statusText");
     const introCard = $("introCard");
@@ -400,6 +526,19 @@
     const nextBtn = $("nextBtn");
     const roundReport = $("roundReport");
     const setSelect = $("setSelect");
+    const trainingCountSelect = $("trainingCountSelect");
+    const speedRange = $("speedRange");
+    const speedValue = $("speedValue");
+    const trainingCountField = $("trainingCountField");
+    const speedField = $("speedField");
+    const modeToggle = $("modeToggle");
+    const modeToggleLabel = $("modeToggleLabel");
+    const modeSummary = $("modeSummary");
+    const startBtn = $("startBtn");
+    const submitBtn = $("submitBtn");
+    const playBtn = $("playBtn");
+    const replayBtn = $("replayBtn");
+    const restartBtn = $("restartBtn");
     const spellingVariants = new Map([
       ['apologise', 'apologize'],
       ['apologised', 'apologized'],
@@ -425,10 +564,22 @@
       return `${minutes}:${String(seconds).padStart(2, '0')}`;
     }
 
+    function isTrainingMode() {
+      return state.mode === 'training';
+    }
+
+    function getTrainingProgress() {
+      const total = Number(state.trainingSentenceCount) || 1;
+      const current = Math.min(state.roundHistory.length, total);
+      return `${current} / ${total}`;
+    }
+
     function updateStats() {
-      sentenceNum.textContent = formatTime(state.timeLeft);
+      statOneLabel.textContent = isTrainingMode() ? 'Sentence' : 'Time Left';
+      scoreLabel.textContent = isTrainingMode() ? 'Correct' : 'Score';
+      sentenceNum.textContent = isTrainingMode() ? getTrainingProgress() : formatTime(state.timeLeft);
       attemptNum.textContent = state.currentIndex >= 0 ? `${state.attempt} / 2` : '—';
-      scoreNum.textContent = state.score;
+      scoreNum.textContent = isTrainingMode() ? state.completed : state.score;
     }
 
     function setStatus(text) {
@@ -449,6 +600,13 @@
     function tokenize(text) {
       const normalized = normalize(text);
       return normalized ? normalized.split(' ') : [];
+    }
+
+    function populateTrainingCountSelect() {
+      trainingCountSelect.innerHTML = Array.from({ length: 10 }, (_, index) => index + 1)
+        .map((count) => `<option value="${count}">${count}</option>`)
+        .join('');
+      trainingCountSelect.value = String(state.trainingSentenceCount);
     }
 
     function shuffle(array) {
@@ -497,6 +655,30 @@
         .map(({ value, label }) => `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`)
         .join('');
       setSelect.value = state.selectedSetId;
+    }
+
+    function updateSpeedLabel() {
+      speedValue.textContent = `${Math.round(state.playbackRate * 100)}%`;
+    }
+
+    function updateModeUI() {
+      const training = isTrainingMode();
+      trainingCountField.classList.toggle('hidden', !training);
+      speedField.classList.toggle('hidden', !training);
+      modeToggle.checked = training;
+      modeToggleLabel.textContent = training ? 'Training mode' : 'Game mode';
+      modeSummary.textContent = training
+        ? 'Training mode lets you choose 1 to 10 sentences, removes the timer, and plays audio at your chosen speed.'
+        : 'Game mode uses a 1 minute 30 second round with shuffled sentences and scoring.';
+      startBtn.textContent = training ? 'Start training' : 'Start';
+      updateStats();
+    }
+
+    function setSettingsDisabled(disabled) {
+      setSelect.disabled = disabled;
+      trainingCountSelect.disabled = disabled;
+      speedRange.disabled = disabled && !isTrainingMode();
+      modeToggle.disabled = disabled;
     }
 
     function reshuffleSentences() {
@@ -571,6 +753,7 @@
       const sentence = state.activeSentences[getSentenceIndex()];
       state.currentRoundEntry = {
         sentence: sentence.text,
+        audio: sentence.audio,
         attempts: [],
         answeredCorrectly: false,
         correctAttempt: null
@@ -614,6 +797,25 @@
           attemptRows.push('<p class="report-empty">No answer submitted.</p>');
         }
 
+        const reportButtons = [
+          `<button class="small-btn report-replay-btn" type="button" data-audio="${escapeHtml(entry.audio)}">▶ Replay</button>`
+        ];
+
+        if (!entry.answeredCorrectly) {
+          reportButtons.push(
+            `<button class="small-btn show-correct-btn" type="button" data-target="correct-${index}">Show correct sentence</button>`
+          );
+        }
+
+        const correctSentenceBlock = entry.answeredCorrectly
+          ? ''
+          : `
+            <div class="inline-correct hidden" id="correct-${index}">
+              <div class="report-attempt-label">Correct sentence</div>
+              <div class="feedback">${renderCorrectSentence(entry.sentence)}</div>
+            </div>
+          `;
+
         return `
           <div class="report-item">
             <div class="report-meta">
@@ -621,51 +823,64 @@
               <span class="report-status ${statusClass}">${statusLabel}</span>
             </div>
             <div class="report-attempts">${attemptRows.join('')}</div>
+            <div class="report-actions">${reportButtons.join('')}</div>
+            ${correctSentenceBlock}
           </div>
         `;
       }).join('');
     }
 
-    function playAudio() {
-      if (state.currentIndex < 0 || state.roundOver) return;
-      const sentence = state.activeSentences[getSentenceIndex()];
+    function playAudioFromPath(path) {
       if (state.audio) {
         state.audio.pause();
         state.audio.currentTime = 0;
       }
-      state.audio = new Audio(sentence.audio);
+      state.audio = new Audio(path);
+      state.audio.playbackRate = state.playbackRate;
       state.audio.play().catch(() => {
         setStatus('Audio error');
         message.className = 'message bad';
-        message.textContent = `Could not play ${sentence.audio}. Check that the file exists.`;
+        message.textContent = `Could not play ${path}. Check that the file exists.`;
       });
+    }
+
+    function playAudio() {
+      if (state.currentIndex < 0 || state.roundOver) return;
+      const sentence = state.activeSentences[getSentenceIndex()];
+      playAudioFromPath(sentence.audio);
     }
 
     function startGame() {
       stopTimer();
       state.selectedSetId = setSelect.value || ALL_SETS_ID;
+      state.trainingSentenceCount = Number(trainingCountSelect.value) || 5;
+      state.playbackRate = Number(speedRange.value) || 1;
       reshuffleSentences();
       state.attempt = 1;
       state.score = 0;
       state.completed = 0;
       state.roundHistory = [];
       state.currentRoundEntry = null;
-      state.timeLeft = ROUND_DURATION;
+      state.timeLeft = isTrainingMode() ? 0 : ROUND_DURATION;
       state.roundOver = false;
       introCard.classList.add('hidden');
       endCard.classList.add('hidden');
       gameCard.classList.remove('hidden');
       feedbackCard.classList.remove('hidden');
       userInput.disabled = false;
-      $("submitBtn").disabled = false;
-      $("playBtn").disabled = false;
-      $("replayBtn").disabled = false;
-      setSelect.disabled = true;
+      submitBtn.disabled = false;
+      playBtn.disabled = false;
+      replayBtn.disabled = false;
+      setSettingsDisabled(true);
       nextBtn.textContent = 'Next sentence';
       message.className = 'message info';
       message.textContent = `Playing from ${getSelectedSetLabel()}.`;
       roundReport.innerHTML = '';
-      startTimer();
+      if (!isTrainingMode()) {
+        startTimer();
+      } else {
+        updateStats();
+      }
       loadSentence();
     }
 
@@ -753,6 +968,10 @@
 
     function nextSentence(forceAdvance = false) {
       if ((nextBtn.disabled && !forceAdvance) || state.roundOver) return;
+      if (isTrainingMode() && state.roundHistory.length >= state.trainingSentenceCount) {
+        endGame();
+        return;
+      }
       if (state.currentIndex >= state.order.length - 1) {
         reshuffleSentences();
       } else {
@@ -773,10 +992,10 @@
       gameCard.classList.add('hidden');
       endCard.classList.remove('hidden');
       userInput.disabled = true;
-      $("submitBtn").disabled = true;
-      $("playBtn").disabled = true;
-      $("replayBtn").disabled = true;
-      setSelect.disabled = false;
+      submitBtn.disabled = true;
+      playBtn.disabled = true;
+      replayBtn.disabled = true;
+      setSettingsDisabled(false);
       nextBtn.disabled = true;
       setStatus('Finished');
       updateStats();
@@ -786,20 +1005,55 @@
       );
       window.localStorage.setItem(LAST_SCORE_KEY, String(state.score));
       window.localStorage.setItem(BEST_SCORE_KEY, String(bestScore));
-      $("finalSummary").innerHTML = `Time's up. Final score: <strong>${state.score}</strong>. Sentences completed: <strong>${state.completed}</strong>. Best score: <strong>${bestScore}</strong>.`;
+      if (isTrainingMode()) {
+        $("finalSummary").innerHTML = `Training complete. Correct sentences: <strong>${state.completed}</strong> out of <strong>${state.trainingSentenceCount}</strong>.`;
+      } else {
+        $("finalSummary").innerHTML = `Time's up. Final score: <strong>${state.score}</strong>. Sentences completed: <strong>${state.completed}</strong>. Best score: <strong>${bestScore}</strong>.`;
+      }
       roundReport.innerHTML = buildReportMarkup();
     }
 
-    $("startBtn").addEventListener('click', startGame);
-    $("playBtn").addEventListener('click', playAudio);
-    $("replayBtn").addEventListener('click', playAudio);
-    $("submitBtn").addEventListener('click', submitAnswer);
+    startBtn.addEventListener('click', startGame);
+    playBtn.addEventListener('click', playAudio);
+    replayBtn.addEventListener('click', playAudio);
+    submitBtn.addEventListener('click', submitAnswer);
     nextBtn.addEventListener('click', nextSentence);
-    $("restartBtn").addEventListener('click', startGame);
+    restartBtn.addEventListener('click', startGame);
     setSelect.addEventListener('change', () => {
       state.selectedSetId = setSelect.value || ALL_SETS_ID;
       if (!state.roundOver && !gameCard.classList.contains('hidden')) {
         setStatus(getSelectedSetLabel());
+      }
+    });
+    trainingCountSelect.addEventListener('change', () => {
+      state.trainingSentenceCount = Number(trainingCountSelect.value) || 5;
+      updateStats();
+    });
+    speedRange.addEventListener('input', () => {
+      state.playbackRate = Number(speedRange.value) || 1;
+      if (state.audio) {
+        state.audio.playbackRate = state.playbackRate;
+      }
+      updateSpeedLabel();
+    });
+    modeToggle.addEventListener('change', () => {
+      state.mode = modeToggle.checked ? 'training' : 'game';
+      updateModeUI();
+    });
+    roundReport.addEventListener('click', (event) => {
+      const replayButton = event.target.closest('.report-replay-btn');
+      if (replayButton) {
+        playAudioFromPath(replayButton.dataset.audio);
+        return;
+      }
+
+      const showCorrectButton = event.target.closest('.show-correct-btn');
+      if (showCorrectButton) {
+        const targetId = showCorrectButton.dataset.target;
+        const correctBlock = $(targetId);
+        if (!correctBlock) return;
+        const isHidden = correctBlock.classList.toggle('hidden');
+        showCorrectButton.textContent = isHidden ? 'Show correct sentence' : 'Hide correct sentence';
       }
     });
     userInput.addEventListener('keydown', (e) => {
@@ -810,6 +1064,9 @@
     });
 
     populateSetSelect();
+    populateTrainingCountSelect();
+    updateSpeedLabel();
+    updateModeUI();
     updateStats();
   </script>
 </body>
