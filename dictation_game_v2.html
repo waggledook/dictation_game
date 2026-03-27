@@ -86,6 +86,20 @@
       flex-wrap: wrap;
       margin-top: 16px;
     }
+    .field {
+      display: grid;
+      gap: 8px;
+      max-width: 360px;
+    }
+    select {
+      width: 100%;
+      background: #0b1220;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 15px;
+    }
     button {
       border: 0;
       border-radius: 12px;
@@ -102,7 +116,7 @@
     button:disabled { opacity: .45; cursor: not-allowed; }
     textarea {
       width: 100%;
-      min-height: 110px;
+      min-height: 72px;
       resize: vertical;
       background: #0b1220;
       color: var(--text);
@@ -161,9 +175,51 @@
       color: var(--muted);
       line-height: 1.7;
     }
+    .report-list {
+      display: grid;
+      gap: 14px;
+    }
+    .report-item {
+      background: #0b1220;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+    }
+    .report-meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .report-status.ok {
+      color: #86efac;
+    }
+    .report-status.bad {
+      color: #fca5a5;
+    }
+    .report-empty {
+      color: var(--muted);
+      margin: 0;
+    }
+    .report-attempts {
+      display: grid;
+      gap: 12px;
+    }
+    .report-attempt {
+      display: grid;
+      gap: 6px;
+    }
+    .report-attempt-label {
+      color: var(--muted);
+      font-size: 14px;
+    }
     @media (max-width: 700px) {
       .stats { grid-template-columns: repeat(2, 1fr); }
       h1 { font-size: 24px; }
+      textarea { min-height: 110px; }
       .feedback { font-size: 18px; }
     }
   </style>
@@ -183,10 +239,18 @@
     </div>
 
     <div class="main">
+      <div class="card" id="setCard">
+        <div class="field">
+          <label for="setSelect"><strong>Sentence set</strong></label>
+          <select id="setSelect"></select>
+        </div>
+      </div>
+
       <div class="card" id="introCard">
         <p style="margin-top:0;"><strong>How it works</strong></p>
         <ul class="list">
           <li>Click <strong>Start</strong> to begin.</li>
+          <li>If you leave the set on <strong>All sentences</strong>, the round mixes every sentence in the app.</li>
           <li>You have <strong>1 minute 30 seconds</strong> per round.</li>
           <li>Sentences are shuffled and recycled as needed during the round.</li>
           <li>Each sentence can be answered twice.</li>
@@ -224,6 +288,7 @@
       <div class="card hidden" id="endCard">
         <p style="margin-top:0;"><strong>Finished</strong></p>
         <p id="finalSummary"></p>
+        <div id="roundReport" class="report-list"></div>
         <div class="controls">
           <button class="primary" id="restartBtn">Play again</button>
         </div>
@@ -235,36 +300,84 @@
     const ROUND_DURATION = 90;
     const LAST_SCORE_KEY = 'dictation-game-last-score';
     const BEST_SCORE_KEY = 'dictation-game-best-score';
-
-    const sentences = [
-      "Tell him I'll call him back later.",
-      "She's a very talkative person, isn't she?",
-      "What's your middle name?",
-      "He's quite an ambitious young man.",
-      "What are you packing for your trip?",
-      "It's hers, not mine, so put it back.",
-      "Does she work in a chemist's or a department store?",
-      "I'm going to the checkout now.",
-      "I used to live in a small village.",
-      "We were looking at old photos when you called.",
-      "He grew up in London but moved to France.",
-      "What was she doing when you arrived?",
-      "I'm going to throw this rubbish away.",
-      "If I had a better job, I'd earn more money.",
-      "Will you help me recycle these bottles?",
-      "I'll apply for the position if I have time.",
-      "How long have you been watching this show?",
-      "I've never lived in the country before.",
-      "There's a beautiful view from the woods.",
-      "She's been working on her CV all day."
+    const sentenceSets = [
+      {
+        id: 'core',
+        label: 'Core sentences',
+        sentences: [
+          { text: "Tell him I'll call him back later.", audio: 'audio/sentence01.mp3' },
+          { text: "She's a very talkative person, isn't she?", audio: 'audio/sentence02.mp3' },
+          { text: "What's your middle name?", audio: 'audio/sentence03.mp3' },
+          { text: "He's quite an ambitious young man.", audio: 'audio/sentence04.mp3' },
+          { text: "What are you packing for your trip?", audio: 'audio/sentence05.mp3' },
+          { text: "It's hers, not mine, so put it back.", audio: 'audio/sentence06.mp3' },
+          { text: "Does she work in a chemist's or a department store?", audio: 'audio/sentence07.mp3' },
+          { text: "I'm going to the checkout now.", audio: 'audio/sentence08.mp3' },
+          { text: "I used to live in a small village.", audio: 'audio/sentence09.mp3' },
+          { text: "We were looking at old photos when you called.", audio: 'audio/sentence10.mp3' },
+          { text: "He grew up in London but moved to France.", audio: 'audio/sentence11.mp3' },
+          { text: "What was she doing when you arrived?", audio: 'audio/sentence12.mp3' },
+          { text: "I'm going to throw this rubbish away.", audio: 'audio/sentence13.mp3' },
+          { text: "If I had a better job, I'd earn more money.", audio: 'audio/sentence14.mp3' },
+          { text: "Will you help me recycle these bottles?", audio: 'audio/sentence15.mp3' },
+          { text: "I'll apply for the position if I have time.", audio: 'audio/sentence16.mp3' },
+          { text: "How long have you been watching this show?", audio: 'audio/sentence17.mp3' },
+          { text: "I've never lived in the country before.", audio: 'audio/sentence18.mp3' },
+          { text: "There's a beautiful view from the woods.", audio: 'audio/sentence19.mp3' },
+          { text: "She's been working on her CV all day.", audio: 'audio/sentence20.mp3' }
+        ]
+      },
+      {
+        id: 'can-cant',
+        label: "Can and can't",
+        sentences: [
+          { text: "I can swim, but I can't dive very well.", audio: 'audio/can-cant/01.mp3' },
+          { text: "Can you speak French, or just a little?", audio: 'audio/can-cant/02.mp3' },
+          { text: "She can play the piano, but she can't read music.", audio: 'audio/can-cant/03.mp3' },
+          { text: "We can meet after class if you want.", audio: 'audio/can-cant/04.mp3' },
+          { text: "He can't come today because he's at work.", audio: 'audio/can-cant/05.mp3' },
+          { text: "Can they use their phones in the lesson?", audio: 'audio/can-cant/06.mp3' },
+          { text: "My sister can cook, but I can't.", audio: 'audio/can-cant/07.mp3' },
+          { text: "You can borrow my pen if you need one.", audio: 'audio/can-cant/08.mp3' },
+          { text: "Why can't you stay a bit longer?", audio: 'audio/can-cant/09.mp3' },
+          { text: "Can your dad drive, or can't he?", audio: 'audio/can-cant/10.mp3' }
+        ]
+      },
+      {
+        id: 'modals-present-past',
+        label: 'Modals present and past',
+        sentences: [
+          { text: "You can park here at the weekend.", audio: 'audio/modals-present-past/01.mp3' },
+          { text: "She must be at work by now.", audio: 'audio/modals-present-past/02.mp3' },
+          { text: "You should call her before you leave.", audio: 'audio/modals-present-past/03.mp3' },
+          { text: "He might know the answer to that.", audio: 'audio/modals-present-past/04.mp3' },
+          { text: "You could try restarting your computer.", audio: 'audio/modals-present-past/05.mp3' },
+          { text: "You ought to apologize for what you said.", audio: 'audio/modals-present-past/06.mp3' },
+          { text: "He can't be serious about moving abroad.", audio: 'audio/modals-present-past/07.mp3' },
+          { text: "You might as well stay for dinner.", audio: 'audio/modals-present-past/08.mp3' },
+          { text: "She must have forgotten about the meeting.", audio: 'audio/modals-present-past/09.mp3' },
+          { text: "He could have called if he was running late.", audio: 'audio/modals-present-past/10.mp3' },
+          { text: "You should have told me earlier.", audio: 'audio/modals-present-past/11.mp3' },
+          { text: "You needn't have bought anything.", audio: 'audio/modals-present-past/12.mp3' },
+          { text: "I shouldn't have eaten so much cake!", audio: 'audio/modals-present-past/13.mp3' },
+          { text: "We must have taken the wrong turn.", audio: 'audio/modals-present-past/14.mp3' },
+          { text: "You ought to have left earlier to avoid traffic.", audio: 'audio/modals-present-past/15.mp3' }
+        ]
+      }
     ];
 
+    const ALL_SETS_ID = 'all';
+
     const state = {
+      selectedSetId: ALL_SETS_ID,
+      activeSentences: [],
       currentIndex: -1,
       order: [],
       attempt: 1,
       score: 0,
       completed: 0,
+      roundHistory: [],
+      currentRoundEntry: null,
       audio: null,
       timeLeft: ROUND_DURATION,
       timerId: null,
@@ -285,6 +398,26 @@
     const feedback = $("feedback");
     const message = $("message");
     const nextBtn = $("nextBtn");
+    const roundReport = $("roundReport");
+    const setSelect = $("setSelect");
+    const spellingVariants = new Map([
+      ['apologise', 'apologize'],
+      ['apologised', 'apologized'],
+      ['apologising', 'apologizing'],
+      ['apologises', 'apologizes'],
+      ['apologiser', 'apologizer'],
+      ['apologisers', 'apologizers'],
+      ['cheque', 'check'],
+      ['cheques', 'checks'],
+      ['checkout', 'check out'],
+      ['favourite', 'favorite'],
+      ['favourites', 'favorites'],
+      ['grey', 'gray'],
+      ['realise', 'realize'],
+      ['realised', 'realized'],
+      ['realising', 'realizing'],
+      ['realises', 'realizes']
+    ]);
 
     function formatTime(totalSeconds) {
       const minutes = Math.floor(totalSeconds / 60);
@@ -309,6 +442,7 @@
         .replace(/[“”]/g, '"')
         .replace(/[’‘]/g, "'")
         .replace(/[.,!?;:]/g, '')
+        .replace(/\b[\w']+\b/g, (word) => spellingVariants.get(word) || word)
         .replace(/\s+/g, ' ');
     }
 
@@ -339,8 +473,35 @@
       return state.order[state.currentIndex];
     }
 
+    function getSelectedSentences() {
+      if (state.selectedSetId === ALL_SETS_ID) {
+        return sentenceSets.flatMap((set) => set.sentences);
+      }
+      const selectedSet = sentenceSets.find((set) => set.id === state.selectedSetId);
+      return selectedSet ? selectedSet.sentences : sentenceSets.flatMap((set) => set.sentences);
+    }
+
+    function getSelectedSetLabel() {
+      if (state.selectedSetId === ALL_SETS_ID) return 'All sentences';
+      const selectedSet = sentenceSets.find((set) => set.id === state.selectedSetId);
+      return selectedSet ? selectedSet.label : 'All sentences';
+    }
+
+    function populateSetSelect() {
+      const options = [
+        { value: ALL_SETS_ID, label: 'All sentences' },
+        ...sentenceSets.map((set) => ({ value: set.id, label: set.label }))
+      ];
+
+      setSelect.innerHTML = options
+        .map(({ value, label }) => `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`)
+        .join('');
+      setSelect.value = state.selectedSetId;
+    }
+
     function reshuffleSentences() {
-      state.order = shuffle(sentences.map((_, index) => index));
+      state.activeSentences = getSelectedSentences();
+      state.order = shuffle(state.activeSentences.map((_, index) => index));
       state.currentIndex = 0;
     }
 
@@ -400,31 +561,95 @@
       }).join('');
     }
 
-    function audioPath(index) {
-      return `audio/sentence${String(index + 1).padStart(2, '0')}.mp3`;
+    function renderCorrectSentence(text) {
+      return tokenize(text).map((token) =>
+        `<span class="token correct">${escapeHtml(token)}</span>`
+      ).join('');
+    }
+
+    function beginRoundEntry() {
+      const sentence = state.activeSentences[getSentenceIndex()];
+      state.currentRoundEntry = {
+        sentence: sentence.text,
+        attempts: [],
+        answeredCorrectly: false,
+        correctAttempt: null
+      };
+      state.roundHistory.push(state.currentRoundEntry);
+    }
+
+    function buildReportMarkup() {
+      if (!state.roundHistory.length) {
+        return '<p class="report-empty">No sentences were played this round.</p>';
+      }
+
+      return state.roundHistory.map((entry, index) => {
+        let statusLabel = 'Not answered';
+        let statusClass = 'bad';
+        const attemptRows = [];
+
+        if (entry.answeredCorrectly) {
+          statusLabel = entry.correctAttempt === 1 ? 'Correct on attempt 1' : 'Correct on attempt 2';
+          statusClass = 'ok';
+        } else if (entry.attempts.length > 0) {
+          statusLabel = entry.attempts.length === 1 ? 'Incorrect after 1 attempt' : 'Incorrect after 2 attempts';
+        }
+
+        entry.attempts.forEach((attemptText, attemptIndex) => {
+          const isCorrectAttempt = entry.answeredCorrectly && entry.correctAttempt === attemptIndex + 1;
+          const attemptMarkup = isCorrectAttempt
+            ? renderCorrectSentence(entry.sentence)
+            : compareWords(attemptText, entry.sentence);
+          const attemptStatus = isCorrectAttempt ? 'Correct' : 'Try';
+
+          attemptRows.push(`
+            <div class="report-attempt">
+              <div class="report-attempt-label">Attempt ${attemptIndex + 1} · ${attemptStatus}</div>
+              <div class="feedback">${attemptMarkup}</div>
+            </div>
+          `);
+        });
+
+        if (!attemptRows.length) {
+          attemptRows.push('<p class="report-empty">No answer submitted.</p>');
+        }
+
+        return `
+          <div class="report-item">
+            <div class="report-meta">
+              <span>Sentence ${index + 1}</span>
+              <span class="report-status ${statusClass}">${statusLabel}</span>
+            </div>
+            <div class="report-attempts">${attemptRows.join('')}</div>
+          </div>
+        `;
+      }).join('');
     }
 
     function playAudio() {
       if (state.currentIndex < 0 || state.roundOver) return;
-      const sentenceIndex = getSentenceIndex();
+      const sentence = state.activeSentences[getSentenceIndex()];
       if (state.audio) {
         state.audio.pause();
         state.audio.currentTime = 0;
       }
-      state.audio = new Audio(audioPath(sentenceIndex));
+      state.audio = new Audio(sentence.audio);
       state.audio.play().catch(() => {
         setStatus('Audio error');
         message.className = 'message bad';
-        message.textContent = `Could not play ${audioPath(sentenceIndex)}. Check that the file exists.`;
+        message.textContent = `Could not play ${sentence.audio}. Check that the file exists.`;
       });
     }
 
     function startGame() {
       stopTimer();
+      state.selectedSetId = setSelect.value || ALL_SETS_ID;
       reshuffleSentences();
       state.attempt = 1;
       state.score = 0;
       state.completed = 0;
+      state.roundHistory = [];
+      state.currentRoundEntry = null;
       state.timeLeft = ROUND_DURATION;
       state.roundOver = false;
       introCard.classList.add('hidden');
@@ -435,7 +660,11 @@
       $("submitBtn").disabled = false;
       $("playBtn").disabled = false;
       $("replayBtn").disabled = false;
+      setSelect.disabled = true;
       nextBtn.textContent = 'Next sentence';
+      message.className = 'message info';
+      message.textContent = `Playing from ${getSelectedSetLabel()}.`;
+      roundReport.innerHTML = '';
       startTimer();
       loadSentence();
     }
@@ -465,24 +694,32 @@
     function loadSentence() {
       if (state.roundOver) return;
       updateStats();
-      setStatus('Listening');
+      setStatus(getSelectedSetLabel());
       feedback.innerHTML = '';
       message.className = 'message info';
       message.textContent = 'Listen and type the sentence.';
       userInput.value = '';
       userInput.focus();
       nextBtn.disabled = true;
+      beginRoundEntry();
       playAudio();
     }
 
     function submitAnswer() {
       if (state.currentIndex < 0 || state.roundOver) return;
       const typed = userInput.value;
-      const target = sentences[getSentenceIndex()];
+      const target = state.activeSentences[getSentenceIndex()].text;
+      if (state.currentRoundEntry) {
+        state.currentRoundEntry.attempts.push(typed);
+      }
 
       feedback.innerHTML = compareWords(typed, target);
 
       if (normalize(typed) === normalize(target)) {
+        if (state.currentRoundEntry) {
+          state.currentRoundEntry.answeredCorrectly = true;
+          state.currentRoundEntry.correctAttempt = state.attempt;
+        }
         const points = state.attempt === 1 ? 10 : 5;
         state.score += points;
         state.completed += 1;
@@ -539,6 +776,7 @@
       $("submitBtn").disabled = true;
       $("playBtn").disabled = true;
       $("replayBtn").disabled = true;
+      setSelect.disabled = false;
       nextBtn.disabled = true;
       setStatus('Finished');
       updateStats();
@@ -549,6 +787,7 @@
       window.localStorage.setItem(LAST_SCORE_KEY, String(state.score));
       window.localStorage.setItem(BEST_SCORE_KEY, String(bestScore));
       $("finalSummary").innerHTML = `Time's up. Final score: <strong>${state.score}</strong>. Sentences completed: <strong>${state.completed}</strong>. Best score: <strong>${bestScore}</strong>.`;
+      roundReport.innerHTML = buildReportMarkup();
     }
 
     $("startBtn").addEventListener('click', startGame);
@@ -557,6 +796,12 @@
     $("submitBtn").addEventListener('click', submitAnswer);
     nextBtn.addEventListener('click', nextSentence);
     $("restartBtn").addEventListener('click', startGame);
+    setSelect.addEventListener('change', () => {
+      state.selectedSetId = setSelect.value || ALL_SETS_ID;
+      if (!state.roundOver && !gameCard.classList.contains('hidden')) {
+        setStatus(getSelectedSetLabel());
+      }
+    });
     userInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
@@ -564,6 +809,7 @@
       }
     });
 
+    populateSetSelect();
     updateStats();
   </script>
 </body>
